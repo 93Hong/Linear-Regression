@@ -1,44 +1,50 @@
-# Lab 4 Multi-variable linear regression
 import tensorflow as tf
-tf.set_random_seed(777)  # for reproducibility
+tf.set_random_seed(777)
 
-x_data = [[73., 80., 75.],
-          [93., 88., 93.],
-          [89., 91., 90.],
-          [96., 98., 100.],
-          [73., 66., 70.]]
-y_data = [[152.],
-          [185.],
-          [180.],
-          [196.],
-          [142.]]
+filename_queue = tf.train.string_input_producer(
+	['../data/data-01-test-score.csv'], shuffle = False, name = 'filename_queue')
+
+reader = tf.TextLineReader()
+key, value = reader.read(filename_queue)
+
+record_defaults = [[0.], [0.], [0.], [0.]]
+xy = tf.decode_csv(value, record_defaults = record_defaults)
+
+train_x_batch, train_y_batch = \
+	tf.train.batch([xy[0:-1], xy[-1:]], batch_size = 15)
+
+x = tf.placeholder(tf.float32, shape = [None, 3])
+y = tf.placeholder(tf.float32, shape = [None, 1])
+
+W = tf.Variable(tf.random_normal([3, 1]), name = 'weight')
+b = tf.Variable(tf.random_normal([1]), name = 'bias')
 
 
-# placeholders for a tensor that will be always fed.
-X = tf.placeholder(tf.float32, shape=[None, 3])
-Y = tf.placeholder(tf.float32, shape=[None, 1])
+hypothesis = tf.matmul(x, W) + b
 
-W = tf.Variable(tf.random_normal([3, 1]), name='weight')
-b = tf.Variable(tf.random_normal([1]), name='bias')
+cost = tf.reduce_mean(tf.square(hypothesis - y))
 
-# Hypothesis
-hypothesis = tf.matmul(X, W) + b
-
-# Simplified cost/loss function
-cost = tf.reduce_mean(tf.square(hypothesis - Y))
-
-# Minimize
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=1e-5)
+optimizer = tf.train.GradientDescentOptimizer(learning_rate = 1e-5)
 train = optimizer.minimize(cost)
 
-# Launch the graph in a session.
 sess = tf.Session()
-# Initializes global variables in the graph.
 sess.run(tf.global_variables_initializer())
 
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(sess = sess, coord = coord)
+
+
 for step in range(2001):
-    cost_val, hy_val, _ = sess.run(
-        [cost, hypothesis, train], feed_dict={X: x_data, Y: y_data})
-    if step % 10 == 0:
-        print(step, "Cost: ", cost_val, "\nPrediction:\n", hy_val)
+	x_batch, y_batch = sess.run([train_x_batch, train_y_batch])
+	cost_val, hy_val, _ = sess.run(
+		[cost, hypothesis, train], feed_dict = {x: x_batch, y: y_batch})
+	if step % 10 == 0:
+		print(step, "Cost: ", cost_val, "\nPrediction:\n", hy_val)
+
+
+coord.request_stop()
+coord.join(threads)
+
+print("Yours : ", sess.run(hypothesis, feed_dict = {x: [[100, 70, 101]]}))
+print("Other : ", sess.run(hypothesis, feed_dict = {x: [[60, 70, 110], [90, 100, 80]]}))
 
